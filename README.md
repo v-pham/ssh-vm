@@ -7,8 +7,8 @@ However, IPs are dynamically assigned and it just got annoying when IPs on my VM
 So I wrote a PowerShell function which would invoke SSH to the current IP of whatever VM provided at runtime. I took it a step further because I'm lazy and made the parameter used to specify the VM, dynamic based on the names of the VMs on the current host. Which means the Hyper-V module needs to be available.
 
 # Quick notes
-Beyond the basic sourcing the script to define the function, I recommend adding your user account to the "Hyper-V Administrators" group. This allows administrators to manage Hyper-V. By default, the Hyper-V PS cmdlets this function relies on to get and resolve the IPs for the autocompletion and IP resolution of the VMs, default to require administrator rights meaning this function would only be useable in elevated windows otherwise.
+Beyond the basic sourcing the script to define the function, I recommend adding your user account to the "Hyper-V Administrators" group. This allows non-administrators to manage Hyper-V (and use the required PS cmdlets). By default, the Hyper-V PS cmdlets this function relies on to get and resolve the IPs for the autocompletion and IP resolution of the VMs, require administrator rights meaning this function would only be useable in elevated windows.
 
-I wanted to avoid having to leave an elevated window open just to use this function.
+I did not want to have to leave an elevated window open just to use this function.
 
-Anyway, hope it helps others.
+Anyway, hope it helps.
