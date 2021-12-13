@@ -37,7 +37,6 @@ function Invoke-SshToVM {
     }
 
     begin {
-        $Timeout = 4
         if(!$PSBoundParameters.ContainsKey('VMHost')){
             $VMHost=$Env:COMPUTERNAME
         }
@@ -51,23 +50,27 @@ function Invoke-SshToVM {
 
     process{
         if($NoVMsRunning -and !$Force.IsPresent){
-            Write-Error "The requested VM was found but not running." -RecommendedAction "Either start the VM or use the -Force parameter to attempt to start the VM prior to invoking SSH." -ErrorAction Stop
+            Write-Error "The requested VM was found but not running." -RecommendedAction "Start the VM before re-running this or re-run and use the -Force parameter to attempt to start the VM prior to invoking SSH." -ErrorAction Stop
         }
         if($Force.IsPresent){
             if($(Get-VM -ComputerName $VMHost -VMName $VMName).State -ne 'Running'){
                 Start-VM -ComputerName $VMHost -VMName $VMName
-                $Timer = 0
+                $Timer = 2
+                $Timeout = 10
+                [array]$IpAddresses = @()
+                Start-Sleep -Seconds $Timer #Added as an initial delay for started VMs.
                 Do {
                     Start-Sleep -Seconds 1
                     $Timer++
-                    [array]$IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
+                    Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses | Set-Variable -Name IpAddresses
+                    Write-Verbose "VM started $Timer second(s) ago. Waiting for an IP address (wait timeout is set to $Timeout seconds)."
                 }
-                While ($($IpAddresses.Count -eq 0) -or $($Timer -ge $Timeout))
+                Until ($($IpAddresses.Count -gt 0) -or $($Timer -ge $Timeout))
             }
         }
-        [array]$IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
+        $IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
         if($IpAddresses.Count -eq 0){
-            Write-Error 'No IP address could be found on network adapter.' -RecommendedAction 'Ensure Guest Services are enabled and are running on the virtual machine.' -ErrorAction Stop
+            Write-Error 'No IP address could be found before wait timeout was reached.' -RecommendedAction 'Ensure Guest Services are enabled and are running on the virtual machine.' -ErrorAction Stop
         }
         if($ClipboardIPAddressOnly.IsPresent){
             Set-Clipboard -Value $IpAddresses[0]
