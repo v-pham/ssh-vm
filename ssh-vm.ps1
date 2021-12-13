@@ -1,3 +1,5 @@
+# Requires Hyper-V module
+
 function Invoke-SshToVM {
     [CmdletBinding(DefaultParameterSetName="Default")]
     [Alias("ssh-vm")]
@@ -52,12 +54,12 @@ function Invoke-SshToVM {
         if($NoVMsRunning -and !$Force.IsPresent){
             Write-Error "The requested VM was found but not running." -RecommendedAction "Start the VM before re-running this or re-run and use the -Force parameter to attempt to start the VM prior to invoking SSH." -ErrorAction Stop
         }
+        [array]$IpAddresses = @()
         if($Force.IsPresent){
             if($(Get-VM -ComputerName $VMHost -VMName $VMName).State -ne 'Running'){
                 Start-VM -ComputerName $VMHost -VMName $VMName
                 $Timer = 2
                 $Timeout = 10
-                [array]$IpAddresses = @()
                 Start-Sleep -Seconds $Timer #Added as an initial delay for started VMs.
                 Do {
                     Start-Sleep -Seconds 1
