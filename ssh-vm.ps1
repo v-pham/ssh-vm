@@ -1,6 +1,3 @@
-# To make the uncontrollable, random IP switching less annoying. Requires Hyper-V module (and rights to use the commands). 
-# Highly recommend adding user accounts to Hyper-V Administrators group (otherwise, this function would require Administrator rights to work).
-
 function Invoke-SshToVM {
     [CmdletBinding(DefaultParameterSetName="Default")]
     [Alias("ssh-vm")]
@@ -40,6 +37,7 @@ function Invoke-SshToVM {
     }
 
     begin {
+        $Timeout = 4
         if(!$PSBoundParameters.ContainsKey('VMHost')){
             $VMHost=$Env:COMPUTERNAME
         }
@@ -58,7 +56,13 @@ function Invoke-SshToVM {
         if($Force.IsPresent){
             if($(Get-VM -ComputerName $VMHost -VMName $VMName).State -ne 'Running'){
                 Start-VM -ComputerName $VMHost -VMName $VMName
-                Start-Sleep -Seconds 5
+                $Timer = 0
+                Do {
+                    Start-Sleep -Seconds 1
+                    $Timer++
+                    [array]$IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
+                }
+                While ($($IpAddresses.Count -eq 0) -or $($Timer -ge $Timeout))
             }
         }
         [array]$IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
