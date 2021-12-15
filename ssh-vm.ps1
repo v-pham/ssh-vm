@@ -52,7 +52,7 @@ function Invoke-SshToVM {
 
     process{
         if($NoVMsRunning -and !$Force.IsPresent){
-            Write-Error "The requested VM was found but not running." -RecommendedAction "Start the VM before re-running this or re-run and use the -Force parameter to attempt to start the VM prior to invoking SSH." -ErrorAction Stop
+            Write-Error "The requested VM was found but not running." -RecommendedAction "Start the VM before re-running this or re-run with the -Force parameter to attempt to start the VM before invoking SSH." -ErrorAction Stop
         }
         [array]$IpAddresses = @()
         if($Force.IsPresent){
@@ -64,19 +64,44 @@ function Invoke-SshToVM {
                 Do {
                     Start-Sleep -Seconds 1
                     $Timer++
-                    Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses | Set-Variable -Name IpAddresses
+                    $IPAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
                     Write-Verbose "VM started $Timer second(s) ago. Waiting for an IP address (wait timeout is set to $Timeout seconds)."
+                    $ValidIP = Test-Connection $IpAddresses[0] -Ping -IPv4 -Count 1 | Select-Object -ExpandProperty Status
                 }
                 Until ($($IpAddresses.Count -gt 0) -or $($Timer -ge $Timeout))
             }
+        } else {
+            $IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
         }
-        $IpAddresses = Get-VMNetworkAdapter -ComputerName $VMHost -VMName $VMName | Select-Object -ExpandProperty IPAddresses
         if($IpAddresses.Count -eq 0){
             Write-Error 'No IP address could be found before wait timeout was reached.' -RecommendedAction 'Ensure Guest Services are enabled and are running on the virtual machine.' -ErrorAction Stop
         }
         if($ClipboardIPAddressOnly.IsPresent){
             Set-Clipboard -Value $IpAddresses[0]
         }else {
+            if($LoginName.Length -eq 0){
+                [string[]]$SshConfig = $(Get-Content $Env:USERPROFILE\.ssh\config).split([System.Environment]::NewLine)
+                $Match = $false
+                $i=0
+                ForEach($line in $SSHConfig){
+                    $i++
+                    if($Match -eq $true -and $line.Trim().ToLower().StartsWith('host ')){
+                        Write-Verbose "No user was configured."
+                        break
+                    }elseif($Match -eq $false -and $line.Trim().ToLower().StartsWith('host ')){
+                        $($line.ToLower() -replace 'host ').split(' ') | foreach {
+                            if($VMName.ToLower() -like "$_"){
+                                Write-Verbose "`"$VMName`" matched host `"$_`" and will use the configured user login, if specified."
+                                $Match = $true
+                            }
+                        }
+                    }
+                    if($Match -eq $true -and $line.Trim().ToLower().StartsWith('user ')){
+                        $LoginName = $($line.Trim().ToLower() -replace 'user ').Trim() + "@"
+                        break
+                    }
+                }
+            }
             Write-Verbose "Invoking command: ssh -o StrictHostKeyChecking=no $LoginName$($IpAddresses[0])"
             Invoke-Expression -Command "ssh -o StrictHostKeyChecking=no $LoginName$($IpAddresses[0])"
         }
